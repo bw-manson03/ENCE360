@@ -29,6 +29,12 @@ struct Vector {
 //
 struct Vector *newVector(size_t n) {
 	// TODO: Implement me
+	struct Vector *newVec = malloc(sizeof(struct Vector));
+	newVec->data = malloc(n * sizeof(double));
+	memset(newVec->data, 0, n * sizeof(double));
+	newVec->size = n;
+
+	return newVec;
 }
 
 
@@ -52,6 +58,12 @@ struct Vector *addVectors(struct Vector *v1, struct Vector *v2) {
 	assert(v1->size == v2->size);
 
 	// TODO: Implement me
+	struct Vector *result = newVector(v1->size);
+	for(size_t i = 0; i < v1->size; ++i){
+		result->data[i] = v1->data[i] + v2->data[i];
+	}
+
+	return result;
 }
 
 
@@ -83,8 +95,8 @@ int main() {
 	printVector(y);
 
 
-	//   struct Vector *r = addVectors(x, y);
-	//   printVector(r);
+	struct Vector *r = addVectors(x, y);
+	printVector(r);
 
 		// Expected output: 
 		// <1.43, 2.00, 3.50, 4.00>
