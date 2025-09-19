@@ -22,7 +22,27 @@ void runMe(int32_t *arg) {
 
 int32_t runThreads(size_t n) {
     // You need to write this.
-    
+    pthread_t threads[NUM_THREADS];
+    int32_t args[NUM_THREADS];
+    int32_t sum = 0;
+    for (size_t i = 0; i < n; i++) {
+        args[i] = i;
+        if (pthread_create(&threads[i], NULL, (void*(*)(void*))runMe, (void*)&args[i]) != 0) {
+            perror("create");
+            exit(1);
+        }
+    }
+    for (size_t i = 0; i < n; i++) {
+        void *retval;
+        if (pthread_join(threads[i], &retval) != 0) {
+            perror("join");
+            exit(1);
+        }
+        int32_t value = *((int32_t*)retval);
+        free(retval);
+        sum += value;
+    }
+    return sum;
 }
 
 int main (void) {
