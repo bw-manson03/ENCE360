@@ -13,9 +13,19 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define THREADS 6
+#define THREADS 4
 
 typedef double MathFunc_t(double);
+
+typedef struct {
+    MathFunc_t* func;
+    double start;
+    double end;
+    size_t steps;
+} ThreadArgs_t;
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+double total = 0.0;
 
 
 double gaussian(double x)
@@ -35,29 +45,30 @@ double chargeDecay(double x)
 	}
 }
 
-
-
-
-
 // Integrate using the trapezoid method. 
-double integrateTrap(MathFunc_t* func, double rangeStart, double rangeEnd, size_t numSteps)
+void* integrateTrap(void* arg)
 {
-	double rangeSize = rangeEnd - rangeStart;
-	double dx = rangeSize / numSteps;
+    ThreadArgs_t* args = (ThreadArgs_t*)arg;
+	double rangeSize = args->end - args->start;
+	double dx = rangeSize / args->steps;
 
+    double sum = 0;
 	double area = 0;
-	for (size_t i = 0; i < numSteps; i++) {
-		double smallx = rangeStart + i*dx;
-		double bigx = rangeStart + (i+1)*dx;
+    
+	for (size_t i = 0; i < args->steps; i++) {
+		double smallx = args->start + i*dx;
+		double bigx = args->start + (i+1)*dx;
 
-		area += dx * ( func(smallx) + func(bigx) ) / 2; // Would be more efficient to multiply area by dx once at the end. 
+		sum += (args->func(smallx) + args->func(bigx)) / 2;
 	}
+	area = sum * dx;
 
-	return area;
+    pthread_mutex_lock(&mutex);
+    total += area;
+    pthread_mutex_unlock(&mutex);
+
+	return NULL;
 }
-
-
-
 
 bool getValidInput(MathFunc_t** func, char* funcName, double* start, double* end, size_t* numSteps)
 {
@@ -80,8 +91,6 @@ bool getValidInput(MathFunc_t** func, char* funcName, double* start, double* end
 	return (numRead == 4 && *func != NULL && *end >= *start && *numSteps > 0);
 }
 
-
-
 int main(void)
 {
 	double rangeStart;
@@ -93,9 +102,36 @@ int main(void)
 	printf("Query format: [func] [start] [end] [numSteps]\n");
 
 	while (getValidInput(&func, funcName, &rangeStart, &rangeEnd, &numSteps)) {
-		double area = integrateTrap(func, rangeStart, rangeEnd, numSteps);
+        pthread_t threads[THREADS];
+        ThreadArgs_t threadArgs[THREADS];
+        total = 0.0; // Reset total for each new calculation
 
-		printf("The integral of function \"%s\" in range %g to %g is %.10g\n", funcName, rangeStart, rangeEnd, area);
+        double totalRange = rangeEnd - rangeStart;
+        size_t baseSteps = numSteps / THREADS;
+        size_t remainderSteps = numSteps % THREADS;
+
+        double currentStart = rangeStart;
+
+        for (int i = 0; i < THREADS; i++) {
+            size_t steps = baseSteps + (i < remainderSteps ? 1 : 0);
+            double currentEnd = currentStart + (totalRange * (double)steps / numSteps);
+            threadArgs[i].func = func;
+            threadArgs[i].start = currentStart;
+            threadArgs[i].end = currentEnd;
+            threadArgs[i].steps = steps;
+
+            if (pthread_create(&threads[i], NULL, integrateTrap, &threadArgs[i]) != 0) {
+                perror("create");
+                exit(1);
+            }
+            currentStart = currentEnd;
+        }
+
+        for (int i = 0; i < THREADS; i++) {
+            pthread_join(threads[i], NULL);
+        }
+
+		printf("The integral of function \"%s\" in range %g to %g is %.10g\n", funcName, rangeStart, rangeEnd, total);
 	}
 
 	_exit(0); // Forces more immediate exit than normal - **Use this to exit processes throughout the assignment!**
