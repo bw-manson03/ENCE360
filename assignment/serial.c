@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L // Needed for home PC as running mimimal POSIX
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
