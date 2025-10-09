@@ -1,0 +1,17 @@
+Program,TestFile,ElapsedTime(s)
+serial,1inputLight.txt,.04000
+serial,10inputLight.txt,.04000
+serial,1inputHeavy.txt,1.33000
+serial,10inputHeavy.txt,14.51300
+thread,1inputLight.txt,.04000
+thread,10inputLight.txt,.04000
+thread,1inputHeavy.txt,.37400
+thread,10inputHeavy.txt,4.08100
+process,1inputLight.txt,.04000
+process,10inputLight.txt,.04000
+process,1inputHeavy.txt,1.33400
+process,10inputHeavy.txt,4.72700
+processThread,1inputLight.txt,.04000
+processThread,10inputLight.txt,.04000
+processThread,1inputHeavy.txt,.38100
+processThread,10inputHeavy.txt,2.45900
