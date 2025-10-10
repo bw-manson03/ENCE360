@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
+#include <pthread.h>
 #include <semaphore.h>
 #include <sys/wait.h>
 #include <signal.h>
@@ -16,14 +17,27 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// Process management initialization
-#define MAX_CHILDREN 10
-sem_t numFreeChildren;
-
-
-// MATH FUNCTIONS AND INTEGRATION
 typedef double MathFunc_t(double);
 
+// Thread management initialization
+#define THREADS 4
+
+typedef struct {
+    MathFunc_t* func;
+    double start;
+    double end;
+    size_t steps;
+	double* total;
+} ThreadArgs_t;
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+// Process management initialization
+#define MAX_CHILDREN 4
+
+sem_t numFreeChildren;
+
+// MATH FUNCTIONS AND INTEGRATION
 double gaussian(double x)
 {
 	return exp(-(x*x)/2) / (sqrt(2 * M_PI));
@@ -40,22 +54,29 @@ double chargeDecay(double x)
 	}
 }
 
-// Integrate using the trapezoid method. 
-double integrateTrap(MathFunc_t* func, double rangeStart, double rangeEnd, size_t numSteps)
+// Integrate using the trapezoid method.
+void* integrateTrap(void* arg)
 {
-	double rangeSize = rangeEnd - rangeStart;
-	double dx = rangeSize / numSteps;
+    ThreadArgs_t* args = (ThreadArgs_t*)arg;
+	double rangeSize = args->end - args->start;
+	double dx = rangeSize / args->steps;
 
-	double sum = 0;
+    double sum = 0;
 	double area = 0;
-	for (size_t i = 0; i < numSteps; i++) {
-		double smallx = rangeStart + i*dx;
-		double bigx = rangeStart + (i+1)*dx;
+    
+	for (size_t i = 0; i < args->steps; i++) {
+		double smallx = args->start + i*dx;
+		double bigx = args->start + (i+1)*dx;
 
-		sum += ( func(smallx) + func(bigx) ) / 2; // Would be more efficient to multiply area by dx once at the end. 
+		sum += (args->func(smallx) + args->func(bigx)) / 2;
 	}
 	area = sum * dx;
-	return area;
+
+    pthread_mutex_lock(&mutex);
+    *(args->total) += area;
+    pthread_mutex_unlock(&mutex);
+
+	return NULL;
 }
 
 // INPUT HANDLING
@@ -135,15 +156,42 @@ int main(void) {
 
         if (pid == 0) {
             // Child process
-            double area = integrateTrap(func, rangeStart, rangeEnd, numSteps);
-            printf("[Child %d] Integral of \"%s\" from %g to %g = %.10g\n",
-                   getpid(), funcName, rangeStart, rangeEnd, area);
-            _exit(0);
-        } else {
-            // Parent process
-            printf("[Parent] Spawned child %d\n", pid);
-        }
-    }
+            pthread_t threads[THREADS];
+			ThreadArgs_t threadArgs[THREADS];
+			double total = 0.0; // Reset total for each new calculation
+
+			double totalRange = rangeEnd - rangeStart;
+			size_t baseSteps = numSteps / THREADS;
+			size_t remainderSteps = numSteps % THREADS;
+
+			double currentStart = rangeStart;
+
+			for (int i = 0; i < THREADS; i++) {
+				size_t steps = baseSteps + (i < remainderSteps ? 1 : 0);
+				double currentEnd = currentStart + (totalRange * (double)steps / numSteps);
+				threadArgs[i].func = func;
+				threadArgs[i].start = currentStart;
+				threadArgs[i].end = currentEnd;
+				threadArgs[i].steps = steps;
+				threadArgs[i].total = &total;
+
+				if (pthread_create(&threads[i], NULL, integrateTrap, &threadArgs[i]) != 0) {
+					perror("create");
+					exit(1);
+				}
+				currentStart = currentEnd;
+			}
+
+			for (int i = 0; i < THREADS; i++) {
+				pthread_join(threads[i], NULL);
+			}
+			printf("The integral of function \"%s\" in range %g to %g is %.10g\n", funcName, rangeStart, rangeEnd, total);
+			_exit(0);
+		} else {
+			// Parent process
+			printf("[Parent] Spawned child %d\n", pid);
+		}
+	}
 
     // Wait for any remaining children before exiting
     int status;

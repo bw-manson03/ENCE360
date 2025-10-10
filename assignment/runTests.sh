@@ -1,8 +1,8 @@
 #!/bin/bash
 
-PROGRAMS=("serial" "thread" "process" "processThread")
-TESTFILES=("1inputLight.txt" "10inputLight.txt" "1inputHeavy.txt" "10inputHeavy.txt")
-OUTPUT="results_avg.csv"
+PROGRAMS=("processThread")
+TESTFILES=("processThreadTest100.txt")
+OUTPUT="process_results_avg.csv"
 
 # Header
 echo "Program,TestFile,ElapsedTime(s)" > $OUTPUT
